@@ -22,6 +22,8 @@ export interface CardcomTransaction {
 }
 
 interface CardcomRawTransaction {
+  // Cardcom v11 actual field names (note: "Tranzaction" is their typo)
+  TranzactionId?: string | number;
   TransactionId?: string | number;
   InternalDealNumber?: string | number;
   CreateDate?: string;
@@ -30,15 +32,19 @@ interface CardcomRawTransaction {
   Amount?: number | string;
   DealAmount?: number | string;
   TransactionAmount?: number | string;
-  Status?: string | number;
-  StatusDescription?: string;
+  ResponseCode?: number | string;
   Description?: string;
   ProductName?: string;
+  Last4CardDigitsString?: string;
   Last4Digits?: string;
   CardNumber?: string;
+  Brand?: string;
   CardBrand?: string;
   CardName?: string;
   ApprovalNumber?: string;
+  IsRefund?: boolean;
+  CardOwnerName?: string;
+  CustomFields?: { Id: number; Value: string }[];
 }
 
 function parseDate(raw: string | undefined): string {
@@ -59,13 +65,17 @@ function toCardcomDate(iso: string): string {
 }
 
 function normalizeTransaction(raw: CardcomRawTransaction): CardcomTransaction {
-  const id = String(raw.TransactionId ?? raw.InternalDealNumber ?? "");
+  const id = String(raw.TranzactionId ?? raw.TransactionId ?? raw.InternalDealNumber ?? "");
   const dateRaw = raw.CreateDate ?? raw.TransactionDate ?? raw.Date ?? "";
   const amount = parseFloat(String(raw.Amount ?? raw.DealAmount ?? raw.TransactionAmount ?? "0")) || 0;
-  const status = raw.StatusDescription ?? String(raw.Status ?? "");
-  const description = raw.Description ?? raw.ProductName ?? "";
-  const last4 = raw.Last4Digits ?? raw.CardNumber ?? "";
-  const brand = raw.CardBrand ?? raw.CardName ?? "";
+  // skip refunds
+  if (raw.IsRefund) return { transactionId: id, date: "", amount: 0, status: "refund", description: "", last4Digits: "", cardBrand: "", approvalNumber: "" };
+  const status = String(raw.ResponseCode ?? "");
+  // description: prefer CustomField 24 (product name) or CardName
+  const customDesc = raw.CustomFields?.find((f) => f.Id === 24)?.Value;
+  const description = customDesc ?? raw.Description ?? raw.ProductName ?? raw.CardName ?? "";
+  const last4 = raw.Last4CardDigitsString ?? raw.Last4Digits ?? raw.CardNumber ?? "";
+  const brand = raw.Brand ?? raw.CardBrand ?? raw.CardName ?? "";
 
   return {
     transactionId: id,
@@ -131,8 +141,9 @@ function extractTransactions(data: unknown): CardcomTransaction[] {
     throw new Error(`Cardcom error ${code}: ${msg}`);
   }
 
-  // Try all known response shapes
+  // Try all known response shapes — note Cardcom's own typo: "Tranzactions"
   const list =
+    (d.Tranzactions as CardcomRawTransaction[]) ??   // Cardcom v11 actual key (their typo)
     (d.Transactions as CardcomRawTransaction[]) ??
     (d.transactions as CardcomRawTransaction[]) ??
     (d.DealsList as CardcomRawTransaction[]) ??
@@ -141,14 +152,12 @@ function extractTransactions(data: unknown): CardcomTransaction[] {
     (d.Data as CardcomRawTransaction[]) ??
     (d.data as CardcomRawTransaction[]) ??
     (d.Result as CardcomRawTransaction[]) ??
-    (d.result as CardcomRawTransaction[]) ??
     (d.Items as CardcomRawTransaction[]) ??
-    (d.items as CardcomRawTransaction[]) ??
     (Array.isArray(data) ? (data as CardcomRawTransaction[]) : null);
 
   if (!list || !Array.isArray(list)) return [];
 
-  return list.map(normalizeTransaction);
+  return list.map(normalizeTransaction).filter((t) => t.amount > 0);
 }
 
 export async function testCardcomConnection(
