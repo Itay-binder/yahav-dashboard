@@ -563,7 +563,7 @@ export function CardcomView({
             {transactions.length === 0 ? (
               <div className="space-y-3">
                 <p className="text-sm text-gray-400">לא נמצאו עסקאות בטווח זה</p>
-                {rawDebug && (
+                {rawDebug !== null && rawDebug !== undefined && (
                   <div>
                     <button
                       onClick={() => setShowDebug(v => !v)}
@@ -573,7 +573,7 @@ export function CardcomView({
                     </button>
                     {showDebug && (
                       <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-gray-50 p-3 text-[10px] text-gray-600 border border-gray-200 text-left" dir="ltr">
-                        {JSON.stringify(rawDebug as object, null, 2)}
+                        {JSON.stringify(rawDebug, null, 2) as string}
                       </pre>
                     )}
                   </div>
