@@ -51,6 +51,7 @@ const DiagnosticView = dynamic(() => import("./diagnostic-view").then(m => ({ de
 const InstagramView = dynamic(() => import("./instagram-view").then(m => ({ default: m.InstagramView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600" /></div> });
 const SeoView = dynamic(() => import("./seo-view").then(m => ({ default: m.SeoView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" /></div> });
 const CardcomView = dynamic(() => import("./cardcom-view").then(m => ({ default: m.CardcomView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-sky-200 border-t-sky-600" /></div> });
+const MetaConnectPanel = dynamic(() => import("./meta-connect").then(m => ({ default: m.MetaConnectPanel })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div> });
 const AIChatPanel = dynamic(() => import("./ai-chat").then(m => ({ default: m.AIChatPanel })), { ssr: false });
 import { type DatePreset, DATE_PRESETS, getDateRange } from "./lib/date-presets";
 
@@ -1408,10 +1409,7 @@ export function Dashboard({
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showTokenModal, setShowTokenModal] = useState(false);
-  const [tokenInput, setTokenInput] = useState("");
-  const [tokenSubmitting, setTokenSubmitting] = useState(false);
-  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [showMetaConnect, setShowMetaConnect] = useState(false);
   const [syncStatus, setSyncStatus] = useState<
     Record<string, SyncStatus>
   >({});
@@ -2370,107 +2368,6 @@ export function Dashboard({
         danger={confirmDialog?.danger}
       />
 
-      {showTokenModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          dir="rtl"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !tokenSubmitting) {
-              setShowTokenModal(false);
-            }
-          }}
-        >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900">
-                🔗 התחבר ל-Meta עם Access Token
-              </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                הדבק את ה-User Access Token שלך מ-Meta. הוא יישמר מקומית
-                בקובץ <code className="rounded bg-gray-100 px-1 text-xs">.meta-token.json</code>{" "}
-                בתיקיית הפרויקט.
-              </p>
-              <a
-                href="https://developers.facebook.com/tools/explorer/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-block text-xs text-blue-600 underline hover:text-blue-800"
-              >
-                הפק טוקן ב-Graph API Explorer ↗
-              </a>
-            </div>
-
-            <textarea
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-              disabled={tokenSubmitting}
-              placeholder="EAAB...   (User Access Token)"
-              rows={4}
-              className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 font-mono text-xs text-gray-900 focus:border-blue-400 focus:bg-white focus:outline-none disabled:opacity-50"
-              dir="ltr"
-              autoFocus
-            />
-
-            {tokenError && (
-              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                ❌ {tokenError}
-              </div>
-            )}
-
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setShowTokenModal(false)}
-                disabled={tokenSubmitting}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-50"
-              >
-                ביטול
-              </button>
-              <button
-                onClick={async () => {
-                  const token = tokenInput.trim();
-                  if (!token) {
-                    setTokenError("הדבק טוקן לפני שמירה");
-                    return;
-                  }
-                  setTokenSubmitting(true);
-                  setTokenError(null);
-                  try {
-                    const res = await fetch(
-                      "/api/ad-dashboard/auth/token",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ token }),
-                      }
-                    );
-                    const data = await res.json();
-                    if (!res.ok) {
-                      setTokenError(data.error || "שמירת הטוקן נכשלה");
-                      setTokenSubmitting(false);
-                      return;
-                    }
-                    try {
-                      localStorage.removeItem("ad-dashboard-cache");
-                    } catch {
-                      /* ignore */
-                    }
-                    window.location.reload();
-                  } catch (err) {
-                    setTokenError(
-                      err instanceof Error ? err.message : "שגיאת רשת"
-                    );
-                    setTokenSubmitting(false);
-                  }
-                }}
-                disabled={tokenSubmitting}
-                className="rounded-xl border border-blue-300 bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
-              >
-                {tokenSubmitting ? "מאמת..." : "אישור ושמירה"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Background sync indicator */}
       {isBackgroundSync && (
@@ -2519,7 +2416,7 @@ export function Dashboard({
                   {isSyncing ? "מסנכרן..." : "🔄 סנכרן מ-Meta"}
                 </button>
                 <button
-                  onClick={() => { setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(false); loadWinningAds(); }}
+                  onClick={() => { setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(false); setShowMetaConnect(false); loadWinningAds(); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showWinningAds
                       ? "border-amber-300 bg-amber-50 text-amber-700"
@@ -2529,7 +2426,7 @@ export function Dashboard({
                   🏆 מודעה מנצחת
                 </button>
                 <button
-                  onClick={() => { setShowInstagram(false); setShowSeo(false); setShowCardcom(false); loadDiagnostic(); }}
+                  onClick={() => { setShowInstagram(false); setShowSeo(false); setShowCardcom(false); setShowMetaConnect(false); loadDiagnostic(); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showDiagnostic
                       ? "border-blue-300 bg-blue-50 text-blue-700"
@@ -2539,7 +2436,7 @@ export function Dashboard({
                   🩺 אבחון מצב
                 </button>
                 <button
-                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowSeo(false); setShowCardcom(false); setShowInstagram(!showInstagram); }}
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowSeo(false); setShowCardcom(false); setShowMetaConnect(false); setShowInstagram(!showInstagram); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showInstagram
                       ? "border-purple-300 bg-purple-50 text-purple-700"
@@ -2549,7 +2446,7 @@ export function Dashboard({
                   📸 אינסטגרם
                 </button>
                 <button
-                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowCardcom(false); setShowSeo(!showSeo); }}
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowCardcom(false); setShowMetaConnect(false); setShowSeo(!showSeo); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showSeo
                       ? "border-emerald-300 bg-emerald-50 text-emerald-700"
@@ -2559,7 +2456,7 @@ export function Dashboard({
                   📊 SEO
                 </button>
                 <button
-                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(!showCardcom); }}
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowMetaConnect(false); setShowCardcom(!showCardcom); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showCardcom
                       ? "border-sky-300 bg-sky-50 text-sky-700"
@@ -2568,17 +2465,27 @@ export function Dashboard({
                 >
                   💳 קארדקום
                 </button>
+                <button
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(false); setShowMetaConnect(!showMetaConnect); }}
+                  className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
+                    showMetaConnect
+                      ? "border-blue-400 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:bg-blue-50"
+                  }`}
+                >
+                  🔗 חיבור Meta
+                </button>
               </>
             )}
             {!user && (
               <>
                 <button
-                  onClick={() => {
-                    setTokenInput("");
-                    setTokenError(null);
-                    setShowTokenModal(true);
-                  }}
-                  className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition-all hover:bg-blue-100"
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(false); setShowMetaConnect(!showMetaConnect); }}
+                  className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
+                    showMetaConnect
+                      ? "border-blue-400 bg-blue-50 text-blue-700"
+                      : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  }`}
                 >
                   🔗 התחבר ל-Meta
                 </button>
@@ -2677,8 +2584,13 @@ export function Dashboard({
           />
         )}
 
-        {/* MAIN DASHBOARD (hidden when viewing winning ads, diagnostic, instagram, seo, or cardcom) */}
-        {!showWinningAds && !showDiagnostic && !showInstagram && !showSeo && !showCardcom && <>
+        {/* META CONNECT VIEW */}
+        {showMetaConnect && (
+          <MetaConnectPanel user={user} />
+        )}
+
+        {/* MAIN DASHBOARD (hidden when viewing winning ads, diagnostic, instagram, seo, cardcom, or meta connect) */}
+        {!showWinningAds && !showDiagnostic && !showInstagram && !showSeo && !showCardcom && !showMetaConnect && <>
 
         {/* LOAD ERROR */}
         {loadError && (
