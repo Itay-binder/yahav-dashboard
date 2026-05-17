@@ -1464,8 +1464,12 @@ export function Dashboard({
     const cached = loadFromCache();
 
     if (cached) {
-      // Instant load from cache
-      setAccounts(cached.accounts);
+      // Instant load from cache — apply account selection filter
+      const selectedIds = loadSelectedAccountIds();
+      const cachedAccounts = selectedIds && selectedIds.length > 0
+        ? cached.accounts.filter((a) => selectedIds.includes(a.id))
+        : cached.accounts;
+      setAccounts(cachedAccounts);
       if (cached.settings) setSettings(cached.settings);
       setIsLoading(false);
       setIsBackgroundSync(true);
