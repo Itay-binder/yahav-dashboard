@@ -50,6 +50,7 @@ import dynamic from "next/dynamic";
 const DiagnosticView = dynamic(() => import("./diagnostic-view").then(m => ({ default: m.DiagnosticView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div> });
 const InstagramView = dynamic(() => import("./instagram-view").then(m => ({ default: m.InstagramView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600" /></div> });
 const SeoView = dynamic(() => import("./seo-view").then(m => ({ default: m.SeoView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" /></div> });
+const CardcomView = dynamic(() => import("./cardcom-view").then(m => ({ default: m.CardcomView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-sky-200 border-t-sky-600" /></div> });
 const AIChatPanel = dynamic(() => import("./ai-chat").then(m => ({ default: m.AIChatPanel })), { ssr: false });
 import { type DatePreset, DATE_PRESETS, getDateRange } from "./lib/date-presets";
 
@@ -1378,6 +1379,7 @@ export function Dashboard({
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [showInstagram, setShowInstagram] = useState(false);
   const [showSeo, setShowSeo] = useState(false);
+  const [showCardcom, setShowCardcom] = useState(false);
   const [diagDatePreset, setDiagDatePreset] = useState<DatePreset>("this_month");
   const [diagAccountId, setDiagAccountId] = useState("summary");
   const [diagCampaignId, setDiagCampaignId] = useState<string>("");
@@ -1697,6 +1699,14 @@ export function Dashboard({
     () => calcSummary(activeDays, settings.vatRate),
     [activeDays, settings.vatRate]
   );
+
+  const metaRevenueByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const d of activeDays) {
+      if (d.revenue > 0) map[d.date] = (map[d.date] ?? 0) + d.revenue;
+    }
+    return map;
+  }, [activeDays]);
 
   const bestDays = useMemo(() => {
     let bestCtrIdx = -1,
@@ -2509,7 +2519,7 @@ export function Dashboard({
                   {isSyncing ? "מסנכרן..." : "🔄 סנכרן מ-Meta"}
                 </button>
                 <button
-                  onClick={() => { setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); loadWinningAds(); }}
+                  onClick={() => { setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(false); loadWinningAds(); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showWinningAds
                       ? "border-amber-300 bg-amber-50 text-amber-700"
@@ -2519,7 +2529,7 @@ export function Dashboard({
                   🏆 מודעה מנצחת
                 </button>
                 <button
-                  onClick={() => { setShowInstagram(false); setShowSeo(false); loadDiagnostic(); }}
+                  onClick={() => { setShowInstagram(false); setShowSeo(false); setShowCardcom(false); loadDiagnostic(); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showDiagnostic
                       ? "border-blue-300 bg-blue-50 text-blue-700"
@@ -2529,7 +2539,7 @@ export function Dashboard({
                   🩺 אבחון מצב
                 </button>
                 <button
-                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowSeo(false); setShowInstagram(!showInstagram); }}
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowSeo(false); setShowCardcom(false); setShowInstagram(!showInstagram); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showInstagram
                       ? "border-purple-300 bg-purple-50 text-purple-700"
@@ -2539,7 +2549,7 @@ export function Dashboard({
                   📸 אינסטגרם
                 </button>
                 <button
-                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(!showSeo); }}
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowCardcom(false); setShowSeo(!showSeo); }}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
                     showSeo
                       ? "border-emerald-300 bg-emerald-50 text-emerald-700"
@@ -2547,6 +2557,16 @@ export function Dashboard({
                   }`}
                 >
                   📊 SEO
+                </button>
+                <button
+                  onClick={() => { setShowWinningAds(false); setShowDiagnostic(false); setShowInstagram(false); setShowSeo(false); setShowCardcom(!showCardcom); }}
+                  className={`rounded-xl border px-4 py-2 text-xs font-semibold transition-all ${
+                    showCardcom
+                      ? "border-sky-300 bg-sky-50 text-sky-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-sky-300 hover:bg-sky-50"
+                  }`}
+                >
+                  💳 קארדקום
                 </button>
               </>
             )}
@@ -2647,8 +2667,18 @@ export function Dashboard({
           <SeoView onBack={() => setShowSeo(false)} />
         )}
 
-        {/* MAIN DASHBOARD (hidden when viewing winning ads, diagnostic, instagram, or seo) */}
-        {!showWinningAds && !showDiagnostic && !showInstagram && !showSeo && <>
+        {/* CARDCOM VIEW */}
+        {showCardcom && (
+          <CardcomView
+            onBack={() => setShowCardcom(false)}
+            metaRevenueByDate={metaRevenueByDate}
+            metaTotalRevenue={sum.totalRevenue}
+            dateRangeLabel={`${settings.month}/${settings.year}`}
+          />
+        )}
+
+        {/* MAIN DASHBOARD (hidden when viewing winning ads, diagnostic, instagram, seo, or cardcom) */}
+        {!showWinningAds && !showDiagnostic && !showInstagram && !showSeo && !showCardcom && <>
 
         {/* LOAD ERROR */}
         {loadError && (
