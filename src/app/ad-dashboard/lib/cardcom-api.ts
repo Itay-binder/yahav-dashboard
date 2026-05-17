@@ -84,7 +84,7 @@ export async function fetchCardcomTransactions(
   fromDate: string,
   toDate: string,
   excludedDescriptions: string[] = []
-): Promise<CardcomTransaction[]> {
+): Promise<{ transactions: CardcomTransaction[]; rawResponse?: unknown }> {
   const payload = {
     TerminalNumber: parseInt(creds.terminalNumber, 10) || creds.terminalNumber,
     ApiName: creds.apiName,
@@ -93,7 +93,6 @@ export async function fetchCardcomTransactions(
     ToDate: toCardcomDate(toDate),
     Page: 1,
     Page_size: 500,
-    TranStatus: "Success",
   };
 
   const res = await fetch(`${BASE_URL}/Transactions/ListTransactions`, {
@@ -104,40 +103,52 @@ export async function fetchCardcomTransactions(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Cardcom API error: ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`);
+    throw new Error(`Cardcom API error: ${res.status}${body ? ` — ${body.slice(0, 300)}` : ""}`);
   }
 
   const data = await res.json();
   const transactions = extractTransactions(data);
 
-  if (excludedDescriptions.length === 0) return transactions;
+  const filtered = excludedDescriptions.length === 0 ? transactions : (() => {
+    const lower = excludedDescriptions.map((s) => s.toLowerCase().trim());
+    return transactions.filter((t) => {
+      const desc = (t.description ?? "").toLowerCase();
+      return !lower.some((ex) => desc.includes(ex));
+    });
+  })();
 
-  const lower = excludedDescriptions.map((s) => s.toLowerCase().trim());
-  return transactions.filter((t) => {
-    const desc = (t.description ?? "").toLowerCase();
-    return !lower.some((ex) => desc.includes(ex));
-  });
+  return { transactions: filtered, rawResponse: data };
 }
 
 function extractTransactions(data: unknown): CardcomTransaction[] {
   if (!data || typeof data !== "object") return [];
   const d = data as Record<string, unknown>;
 
-  // Possible response shapes
+  // Check for Cardcom error code in response body
+  const code = d.ResponseCode ?? d.returnCode ?? d.ReturnCode;
+  if (code !== undefined && code !== 0 && code !== "0" && code !== "000") {
+    const msg = d.Description ?? d.ReturnValue ?? d.Message ?? d.message ?? String(code);
+    throw new Error(`Cardcom error ${code}: ${msg}`);
+  }
+
+  // Try all known response shapes
   const list =
     (d.Transactions as CardcomRawTransaction[]) ??
     (d.transactions as CardcomRawTransaction[]) ??
+    (d.DealsList as CardcomRawTransaction[]) ??
+    (d.Deals as CardcomRawTransaction[]) ??
+    (d.TransactionsList as CardcomRawTransaction[]) ??
     (d.Data as CardcomRawTransaction[]) ??
     (d.data as CardcomRawTransaction[]) ??
+    (d.Result as CardcomRawTransaction[]) ??
+    (d.result as CardcomRawTransaction[]) ??
     (d.Items as CardcomRawTransaction[]) ??
     (d.items as CardcomRawTransaction[]) ??
     (Array.isArray(data) ? (data as CardcomRawTransaction[]) : null);
 
   if (!list || !Array.isArray(list)) return [];
 
-  return list
-    .map(normalizeTransaction)
-    .filter((t) => t.amount > 0); // only successful charges
+  return list.map(normalizeTransaction);
 }
 
 export async function testCardcomConnection(
@@ -157,6 +168,7 @@ export async function testCardcomConnection(
     };
   }
 }
+
 
 // Group transactions by date → total revenue per day
 export function groupByDate(

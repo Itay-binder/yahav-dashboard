@@ -241,6 +241,8 @@ export function CardcomView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
+  const [rawDebug, setRawDebug] = useState<unknown>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Exclusions
   const [exclusions, setExclusions] = useState<string[]>(() => loadExclusions());
@@ -284,6 +286,7 @@ export function CardcomView({
       setTransactions(data.transactions ?? []);
       setByDate(data.byDate ?? {});
       setTotal(data.total ?? 0);
+      setRawDebug(data.rawResponse ?? null);
       setFetched(true);
     } catch {
       setError("שגיאת רשת");
@@ -558,7 +561,24 @@ export function CardcomView({
               עסקאות קארדקום ({transactions.length})
             </h2>
             {transactions.length === 0 ? (
-              <p className="text-sm text-gray-400">לא נמצאו עסקאות בטווח זה</p>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-400">לא נמצאו עסקאות בטווח זה</p>
+                {rawDebug && (
+                  <div>
+                    <button
+                      onClick={() => setShowDebug(v => !v)}
+                      className="text-xs text-blue-500 underline"
+                    >
+                      {showDebug ? "הסתר" : "הצג"} תגובה גולמית מקארדקום (לאבחון)
+                    </button>
+                    {showDebug && (
+                      <pre className="mt-2 max-h-60 overflow-auto rounded-lg bg-gray-50 p-3 text-[10px] text-gray-600 border border-gray-200 text-left" dir="ltr">
+                        {JSON.stringify(rawDebug as object, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const transactions = await fetchCardcomTransactions(
+    const { transactions, rawResponse } = await fetchCardcomTransactions(
       { terminalNumber, apiName, apiPassword },
       fromDate,
       toDate,
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       byDate,
       total,
       count: transactions.length,
+      rawResponse, // for debugging when transactions are empty
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "שגיאה בשליפת עסקאות";
