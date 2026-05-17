@@ -52,6 +52,12 @@ function parseDate(raw: string | undefined): string {
   return raw.substring(0, 10);
 }
 
+// Cardcom expects dates as ddmmyyyy
+function toCardcomDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}${m}${y}`;
+}
+
 function normalizeTransaction(raw: CardcomRawTransaction): CardcomTransaction {
   const id = String(raw.TransactionId ?? raw.InternalDealNumber ?? "");
   const dateRaw = raw.CreateDate ?? raw.TransactionDate ?? raw.Date ?? "";
@@ -76,40 +82,41 @@ function normalizeTransaction(raw: CardcomRawTransaction): CardcomTransaction {
 export async function fetchCardcomTransactions(
   creds: CardcomCredentials,
   fromDate: string,
-  toDate: string
+  toDate: string,
+  excludedDescriptions: string[] = []
 ): Promise<CardcomTransaction[]> {
   const payload = {
     TerminalNumber: parseInt(creds.terminalNumber, 10) || creds.terminalNumber,
     ApiName: creds.apiName,
     ApiPassword: creds.apiPassword,
-    FromDate: fromDate,
-    ToDate: toDate,
+    FromDate: toCardcomDate(fromDate),
+    ToDate: toCardcomDate(toDate),
     Page: 1,
-    PageSize: 500,
+    Page_size: 500,
+    TranStatus: "Success",
   };
 
-  const res = await fetch(`${BASE_URL}/Transactions/GetTransactionsReport`, {
+  const res = await fetch(`${BASE_URL}/Transactions/ListTransactions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
-    // Try alternate endpoint
-    const res2 = await fetch(`${BASE_URL}/Transactions/ListTransactions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res2.ok) {
-      throw new Error(`Cardcom API error: ${res.status}`);
-    }
-    const data2 = await res2.json();
-    return extractTransactions(data2);
+    const body = await res.text().catch(() => "");
+    throw new Error(`Cardcom API error: ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`);
   }
 
   const data = await res.json();
-  return extractTransactions(data);
+  const transactions = extractTransactions(data);
+
+  if (excludedDescriptions.length === 0) return transactions;
+
+  const lower = excludedDescriptions.map((s) => s.toLowerCase().trim());
+  return transactions.filter((t) => {
+    const desc = (t.description ?? "").toLowerCase();
+    return !lower.some((ex) => desc.includes(ex));
+  });
 }
 
 function extractTransactions(data: unknown): CardcomTransaction[] {

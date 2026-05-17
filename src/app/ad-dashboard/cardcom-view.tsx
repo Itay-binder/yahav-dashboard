@@ -30,6 +30,7 @@ interface CardcomViewProps {
 }
 
 const LS_KEY = "cardcom_creds";
+const LS_EXCLUSIONS_KEY = "cardcom_exclusions";
 
 function loadCreds(): CardcomCreds | null {
   try {
@@ -46,6 +47,19 @@ function saveCreds(c: CardcomCreds) {
 
 function removeCreds() {
   localStorage.removeItem(LS_KEY);
+}
+
+function loadExclusions(): string[] {
+  try {
+    const raw = localStorage.getItem(LS_EXCLUSIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveExclusions(list: string[]) {
+  localStorage.setItem(LS_EXCLUSIONS_KEY, JSON.stringify(list));
 }
 
 // ─── Connect Form ─────────────────────────────────────────
@@ -216,6 +230,27 @@ export function CardcomView({
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
 
+  // Exclusions
+  const [exclusions, setExclusions] = useState<string[]>(() => loadExclusions());
+  const [newExclusion, setNewExclusion] = useState("");
+
+  const addExclusion = () => {
+    const val = newExclusion.trim();
+    if (!val || exclusions.includes(val)) return;
+    const updated = [...exclusions, val];
+    setExclusions(updated);
+    saveExclusions(updated);
+    setNewExclusion("");
+    setFetched(false); // force re-fetch
+  };
+
+  const removeExclusion = (item: string) => {
+    const updated = exclusions.filter((e) => e !== item);
+    setExclusions(updated);
+    saveExclusions(updated);
+    setFetched(false);
+  };
+
   const fetchData = useCallback(async () => {
     if (!creds) return;
     setLoading(true);
@@ -225,7 +260,7 @@ export function CardcomView({
       const res = await fetch("/api/ad-dashboard/cardcom/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...creds, fromDate, toDate }),
+        body: JSON.stringify({ ...creds, fromDate, toDate, excludedDescriptions: exclusions }),
       });
       const data = await res.json();
 
@@ -243,7 +278,7 @@ export function CardcomView({
     } finally {
       setLoading(false);
     }
-  }, [creds, fromDate, toDate]);
+  }, [creds, fromDate, toDate, exclusions]);
 
   const handleDisconnect = () => {
     removeCreds();
@@ -337,6 +372,54 @@ export function CardcomView({
         <div className="text-xs text-gray-400">
           טרמינל: {creds.terminalNumber}
         </div>
+      </div>
+
+      {/* Exclusion filter */}
+      <div className={`${GLASS} rounded-2xl p-5`}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-gray-700">סינון לקוחות מהחישוב</h2>
+          <span className="text-xs text-gray-400">עסקאות שהתיאור שלהן מכיל את המילות המפתח יוסרו</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newExclusion}
+            onChange={(e) => setNewExclusion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addExclusion()}
+            placeholder='לדוגמה: "בדיקה" או שם לקוח לסינון'
+            className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+          />
+          <button
+            onClick={addExclusion}
+            disabled={!newExclusion.trim()}
+            className="rounded-xl bg-gray-800 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-40"
+          >
+            + הוסף
+          </button>
+        </div>
+        {exclusions.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {exclusions.map((ex) => (
+              <span
+                key={ex}
+                className="flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700"
+              >
+                {ex}
+                <button
+                  onClick={() => removeExclusion(ex)}
+                  className="ml-1 text-red-400 hover:text-red-700"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {exclusions.length > 0 && (
+          <p className="mt-2 text-xs text-gray-400">
+            * לאחר שינוי הסינון לחץ על "שלוף עסקאות" מחדש
+          </p>
+        )}
       </div>
 
       {error && (

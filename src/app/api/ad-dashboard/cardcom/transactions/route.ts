@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { terminalNumber, apiName, apiPassword, fromDate, toDate } =
+    const { terminalNumber, apiName, apiPassword, fromDate, toDate, excludedDescriptions } =
       await request.json();
 
     if (!terminalNumber || !apiName || !apiPassword || !fromDate || !toDate) {
@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
     const transactions = await fetchCardcomTransactions(
       { terminalNumber, apiName, apiPassword },
       fromDate,
-      toDate
+      toDate,
+      Array.isArray(excludedDescriptions) ? excludedDescriptions : []
     );
 
     const byDate = groupByDate(transactions);
