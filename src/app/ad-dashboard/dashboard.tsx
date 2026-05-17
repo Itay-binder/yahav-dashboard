@@ -45,6 +45,7 @@ import {
   fmtDec,
 } from "./lib/format";
 import type { AdInsight } from "./lib/meta-api";
+import { loadSelectedAccountIds } from "./lib/account-connections";
 import dynamic from "next/dynamic";
 
 const DiagnosticView = dynamic(() => import("./diagnostic-view").then(m => ({ default: m.DiagnosticView })), { loading: () => <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div> });
@@ -1480,9 +1481,15 @@ export function Dashboard({
         if (accs?.length) {
           const s = settings;
 
+          // Filter by user-selected accounts (from Meta Connect panel)
+          const selectedIds = loadSelectedAccountIds();
+          const filteredAccs = selectedIds && selectedIds.length > 0
+            ? accs.filter((acc: { id: string }) => selectedIds.includes(acc.id))
+            : accs;
+
           // 2. If no cache, show accounts with empty days first
           if (!cached) {
-            const emptyAccounts: Account[] = accs.map((acc: { id: string; name: string; metaAccountId?: string }) => ({
+            const emptyAccounts: Account[] = filteredAccs.map((acc: { id: string; name: string; metaAccountId?: string }) => ({
               id: acc.id,
               name: acc.name,
               metaAccountId: acc.metaAccountId,
@@ -1492,8 +1499,8 @@ export function Dashboard({
             setIsLoading(false);
           }
 
-          // 3. Sync ALL accounts in parallel from Meta (background)
-          const syncIds = accs.map((acc: { id: string }) => acc.id);
+          // 3. Sync selected accounts in parallel from Meta (background)
+          const syncIds = filteredAccs.map((acc: { id: string }) => acc.id);
           await Promise.all(
             syncIds.map((id: string) => syncAccount(id, s.month, s.year))
           );
@@ -2578,6 +2585,8 @@ export function Dashboard({
         {showCardcom && (
           <CardcomView
             onBack={() => setShowCardcom(false)}
+            accountId={activeAccountId}
+            accountName={accounts.find((a) => a.id === activeAccountId)?.name}
             metaRevenueByDate={metaRevenueByDate}
             metaTotalRevenue={sum.totalRevenue}
             dateRangeLabel={`${settings.month}/${settings.year}`}

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import type { CardcomTransaction } from "./lib/cardcom-api";
 import { GLASS } from "./lib/constants";
 import { fmtCurrency } from "./lib/format";
+import { getAccountConnection } from "./lib/account-connections";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -23,7 +24,8 @@ interface DayComparison {
 
 interface CardcomViewProps {
   onBack: () => void;
-  // Meta revenue by date (YYYY-MM-DD → amount) passed from parent dashboard
+  accountId?: string;        // active Meta ad account (or "summary")
+  accountName?: string;
   metaRevenueByDate?: Record<string, number>;
   metaTotalRevenue?: number;
   dateRangeLabel?: string;
@@ -209,11 +211,21 @@ function SummaryCard({
 
 export function CardcomView({
   onBack,
+  accountId,
+  accountName,
   metaRevenueByDate = {},
   metaTotalRevenue = 0,
   dateRangeLabel,
 }: CardcomViewProps) {
-  const [creds, setCreds] = useState<CardcomCreds | null>(() => loadCreds());
+  // If a specific account is active and has per-account Cardcom creds, use those
+  const perAccountCreds =
+    accountId && accountId !== "summary"
+      ? (getAccountConnection(accountId).cardcom ?? null)
+      : null;
+
+  const [creds, setCreds] = useState<CardcomCreds | null>(
+    () => perAccountCreds ?? loadCreds()
+  );
 
   // date range
   const today = new Date();
@@ -332,6 +344,9 @@ export function CardcomView({
           </button>
           <h1 className="text-lg font-bold text-gray-800">
             💳 קארדקום — השוואת הכנסות
+            {accountName && accountId !== "summary" && (
+              <span className="mr-2 text-sm font-normal text-gray-500">· {accountName}</span>
+            )}
           </h1>
         </div>
         <button
