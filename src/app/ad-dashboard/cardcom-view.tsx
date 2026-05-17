@@ -288,6 +288,7 @@ export function CardcomView({
       setTotal(data.total ?? 0);
       setRawDebug(data.rawResponse ?? null);
       setFetched(true);
+      try { localStorage.setItem("cardcom_revenue_by_date", JSON.stringify(data.byDate ?? {})); } catch { /* ignore */ }
     } catch {
       setError("שגיאת רשת");
     } finally {
@@ -586,6 +587,7 @@ export function CardcomView({
                     <tr className="border-b border-gray-100 text-xs text-gray-500">
                       <th className="pb-2 text-right font-semibold">תאריך</th>
                       <th className="pb-2 text-left font-semibold">סכום</th>
+                      <th className="pb-2 text-right font-semibold">שם לקוח</th>
                       <th className="pb-2 text-right font-semibold">תיאור</th>
                       <th className="pb-2 text-right font-semibold">סטטוס</th>
                       <th className="pb-2 text-left font-semibold">4 ספרות</th>
@@ -601,7 +603,10 @@ export function CardcomView({
                         <td className="py-2 text-left font-semibold text-emerald-700">
                           {fmtCurrency(t.amount)}
                         </td>
-                        <td className="py-2 text-right text-gray-500 text-xs max-w-[200px] truncate">
+                        <td className="py-2 text-right text-gray-700 text-xs max-w-[160px] truncate font-medium">
+                          {t.customerName || "—"}
+                        </td>
+                        <td className="py-2 text-right text-gray-500 text-xs max-w-[160px] truncate">
                           {t.description || "—"}
                         </td>
                         <td className="py-2 text-right text-xs text-gray-500">

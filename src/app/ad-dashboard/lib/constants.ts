@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   campaignGoal: "registrations",
   leadActionType: "auto",
   leadActionTypes: {},
+  revenueSource: "meta",
 };
 
 // Available lead action types for the settings dropdown

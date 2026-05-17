@@ -19,6 +19,7 @@ export interface CardcomTransaction {
   last4Digits?: string;
   cardBrand?: string;
   approvalNumber?: string;
+  customerName?: string;
 }
 
 interface CardcomRawTransaction {
@@ -86,6 +87,7 @@ function normalizeTransaction(raw: CardcomRawTransaction): CardcomTransaction {
     last4Digits: last4,
     cardBrand: brand,
     approvalNumber: raw.ApprovalNumber,
+    customerName: raw.CardOwnerName ?? "",
   };
 }
 

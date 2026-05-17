@@ -35,6 +35,7 @@ export interface Settings {
   campaignGoal: CampaignGoal;
   leadActionType: string; // global default
   leadActionTypes: Record<string, string>; // per-account overrides: { "act_xxx": "complete_registration" }
+  revenueSource?: "meta" | "cardcom";
 }
 
 export interface DayMetrics {

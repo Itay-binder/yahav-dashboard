@@ -1418,6 +1418,25 @@ export function Dashboard({
   const [activeDatePreset, setActiveDatePreset] = useState<DatePreset>("this_month");
   const [mainCampaignId, setMainCampaignId] = useState<string>("");
   const [mainCampaigns, setMainCampaigns] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  const [cardcomRevenueByDate, setCardcomRevenueByDate] = useState<Record<string, number>>({});
+
+  // Load/refresh Cardcom revenue data from localStorage whenever the Cardcom tab closes
+  useEffect(() => {
+    if (!showCardcom) {
+      try {
+        const raw = localStorage.getItem("cardcom_revenue_by_date");
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        // Convert "YYYY-MM-DD" keys to "D.M" format used by dashboard days
+        const converted: Record<string, number> = {};
+        for (const [iso, amount] of Object.entries(parsed)) {
+          const [, m, d] = iso.split("-");
+          converted[`${parseInt(d)}.${parseInt(m)}`] = amount;
+        }
+        setCardcomRevenueByDate(converted);
+      } catch { /* ignore */ }
+    }
+  }, [showCardcom]);
 
   // ─── Cache helpers ───
   const CACHE_KEY = "ad-dashboard-cache";
@@ -1699,14 +1718,23 @@ export function Dashboard({
     return accounts.find((a) => a.id === activeAccountId)?.days || [];
   }, [activeAccountId, accounts]);
 
+  const effectiveVatRate = (settings.revenueSource ?? "meta") === "cardcom" ? 0 : settings.vatRate;
+
+  const activeDaysForCalc = useMemo(() => {
+    if ((settings.revenueSource ?? "meta") !== "cardcom" || Object.keys(cardcomRevenueByDate).length === 0) {
+      return activeDays;
+    }
+    return activeDays.map(d => ({ ...d, revenue: cardcomRevenueByDate[d.date] ?? 0 }));
+  }, [activeDays, settings.revenueSource, cardcomRevenueByDate]);
+
   const metrics = useMemo(
-    () => activeDays.map((d) => calcDay(d, settings.vatRate)),
-    [activeDays, settings.vatRate]
+    () => activeDaysForCalc.map((d) => calcDay(d, effectiveVatRate)),
+    [activeDaysForCalc, effectiveVatRate]
   );
 
   const sum = useMemo(
-    () => calcSummary(activeDays, settings.vatRate),
-    [activeDays, settings.vatRate]
+    () => calcSummary(activeDaysForCalc, effectiveVatRate),
+    [activeDaysForCalc, effectiveVatRate]
   );
 
   const metaRevenueByDate = useMemo(() => {
@@ -1764,8 +1792,8 @@ export function Dashboard({
   );
 
   const smartRecs = useMemo(
-    () => getSmartRecommendations(activeDays, settings.vatRate),
-    [activeDays, settings.vatRate]
+    () => getSmartRecommendations(activeDaysForCalc, effectiveVatRate),
+    [activeDaysForCalc, effectiveVatRate]
   );
 
   // Campaign results — computed based on campaign goal
@@ -1784,22 +1812,22 @@ export function Dashboard({
 
   const weeklyRows = useMemo(() => {
     if (timeView !== "weekly") return [];
-    return groupByWeek(activeDays).map((w) => ({
+    return groupByWeek(activeDaysForCalc).map((w) => ({
       label: w.label,
       day: w.data,
-      metrics: calcDay(w.data, settings.vatRate),
+      metrics: calcDay(w.data, effectiveVatRate),
     }));
-  }, [timeView, activeDays, settings.vatRate]);
+  }, [timeView, activeDaysForCalc, effectiveVatRate]);
 
   const monthlyRow = useMemo(() => {
     if (timeView !== "monthly") return null;
-    const agg = aggregateDays(activeDays);
+    const agg = aggregateDays(activeDaysForCalc);
     return {
       label: "סה״כ חודשי",
       day: agg,
-      metrics: calcDay(agg, settings.vatRate),
+      metrics: calcDay(agg, effectiveVatRate),
     };
-  }, [timeView, activeDays, settings.vatRate]);
+  }, [timeView, activeDaysForCalc, effectiveVatRate]);
 
   // ─── Handlers ───
   const upDay = useCallback(
@@ -2725,6 +2753,17 @@ export function Dashboard({
             />
           </label>
           <label className="flex items-center gap-2 text-sm text-gray-600">
+            מקור הכנסה
+            <select
+              value={settings.revenueSource ?? "meta"}
+              onChange={(e) => upSet("revenueSource", e.target.value as "meta" | "cardcom")}
+              className={inputCls}
+            >
+              <option value="meta">Meta</option>
+              <option value="cardcom">קארדקום</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
             ROAS איזון
             <input
               type="number"
@@ -3006,16 +3045,16 @@ export function Dashboard({
           />
           <KPICard
             icon="📈"
-            label="הכנסה ברוטו"
+            label={(settings.revenueSource ?? "meta") === "cardcom" ? "הכנסה (קארדקום)" : "הכנסה ברוטו"}
             value={fmtCurrency(sum.totalRevenue)}
-            sub={`לפני מע״מ: ${fmtCurrency(sum.totalRevenueBeforeVat)}`}
+            sub={(settings.revenueSource ?? "meta") === "cardcom" ? "ללא ניכוי מע״מ" : `לפני מע״מ: ${fmtCurrency(sum.totalRevenueBeforeVat)}`}
             color="cyan"
             large={true}
             status={sum.totalRevenue > sum.totalSpend ? "good" : "bad"}
           />
           <KPICard
             icon={sum.totalNetProfit >= 0 ? "✅" : "⚠️"}
-            label="רווח נקי (אחרי מע״מ)"
+            label={(settings.revenueSource ?? "meta") === "cardcom" ? "רווח נקי" : "רווח נקי (אחרי מע״מ)"}
             value={fmtSigned(sum.totalNetProfit)}
             sub={`${sum.profitableDays} מתוך ${sum.activeDays} ימים ברווח`}
             color={profitColor}
